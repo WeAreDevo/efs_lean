@@ -47,8 +47,10 @@ def S : EFSSignature :=
 }
 
 -- We identify a string of "l"s of length n with the positive integer n.
-def encoding (n : Nat) : KString S :=
+def encode (n : Nat) : KString S :=
   List.replicate n K.l
+def unencode (u : KString S) : Nat :=
+  u.length
 
 -- helper to construct atomic formula "Even(s)" from a Term s.
 def EvenAtom (s : Term S) : AtomicFormula S :=
@@ -56,12 +58,12 @@ def EvenAtom (s : Term S) : AtomicFormula S :=
 
 -- Axiom 1: "Even(ll)".
 def ax1 : Formula S :=
-  ⟨[] , EvenAtom (Term.ofKstring (encoding 2))⟩
+  ⟨[] , EvenAtom (Term.ofKstring (encode 2))⟩
 
 -- Axiom 2: "E(x) -> E(xll)".
 def ax2 : Formula S :=
   ⟨[ EvenAtom ([Sum.inr V.x]) ],
-  EvenAtom ([Sum.inr V.x] ++ (Term.ofKstring (encoding 2)))⟩
+  EvenAtom ([Sum.inr V.x] ++ (Term.ofKstring (encode 2)))⟩
 
 def E : EFS S :=
   {
@@ -80,7 +82,7 @@ def vget0 {α : Type} (xs : Vector α 1) : α :=
 
 -- Attribute of unary strings encoding our meta positive even naturals.
 def EvenAttr : Attribute (KString S) 1 :=
-  { xs | MetaEven ((vget0 xs).length) }
+  { xs | MetaEven (unencode (vget0 xs)) }
 
 /-
 Finally, we can state the main theorem of this example, which says that the
