@@ -90,13 +90,15 @@ well formed formulas might look something like: -/
  Intuition why expressive power is not lost:
  Any implication in a premise can be compiled away by introducing a fresh predicate symbol.
 
-In anticipation of later proofs, instead of a direct formulation,
- we use the following isomorphic list form that keeps explicit track
-of the premises and single conclusion-/
+Instead of a direct formulation, we use the following isomorphic list form that keeps explicit track
+of the premises and single conclusion. Not sure if this is best in long run...-/
 structure Formula (S : EFSSignature) where
   premises : List (AtomicFormula S)
   concl    : AtomicFormula S
 deriving DecidableEq
+/- In this formulation, Atomic formulas are embeded into Formula as those with empty premises:
+   A  ≅  ⟨[], A⟩
+-/
 /- Extending substitution to general Formulas -/
 namespace Formula
 def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) :
@@ -112,3 +114,45 @@ is a finite set of formulas (over `S`) called axioms.
 -/
 structure EFS (S : EFSSignature) where
   axioms : Finset (Formula S)
+
+inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
+  | ax {X : Formula S} :
+  -- Any axiom is provable.
+      X ∈ E.axioms →
+      ---------------
+      Provable E X
+--
+  | rule1 {X : Formula S} (x : S.V) (u : NonemptyKString S) :
+  -- Substitution of words in K for variables.
+      Provable E X →
+      ----------------------------------
+      Provable E (Formula.subst x u X)
+--
+  /--
+  Rule of Detachment or Modus Ponens.
+  If we have `A` and `A → X`, infer `X`.
+  In our list representation:
+   `A` is `⟨[], A⟩` and `A → X` is `⟨A :: ps, C⟩` (with X represented by ⟨ ps, C ⟩ ),
+  so the result is `⟨ps, C⟩`.
+  -/
+  | rule2 {A C : AtomicFormula S} {ps : List (AtomicFormula S)} :
+      Provable E ⟨[], A⟩ →
+      Provable E ⟨A :: ps, C⟩ →
+      -----------------------------
+      Provable E ⟨ps, C⟩
+
+
+/-
+Syntax definitions for convenient notation.
+-/
+namespace EFSNotation
+
+/-- Turnstile notation for derivability: `E ⊢ X` -/
+scoped notation:51 E " ⊢ " X:50 => Provable E X
+
+/-- Substitution notation: `X[u/x]` -/
+scoped notation:90 t "[" u "/" x "]" => Term.substVar _ x u t
+scoped notation:90 A "[" u "/" x "]" => AtomicFormula.subst x u A
+scoped notation:90 X "[" u "/" x "]" => Formula.subst x u X
+
+end EFSNotation
