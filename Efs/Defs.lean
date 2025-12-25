@@ -5,15 +5,18 @@ import Mathlib.Data.Sum.Basic
 import Mathlib.Data.Vector.Basic
 
 /-
-Elementary Formal Systems (Smullyan)
+Elementary Formal Systems. These definitions are based on
+Raymond Smullyan's paper 'Elementary formal systems' (1961)
+and book 'Theory of Formal Systems' (1961) chapter 1.
+-/
 
-An EFS signature consists of:
+/-
+An EFS signature consists of the mutually disjoint sets:
   K     : finite alphabet of basic symbols
   V     : finite alphabet of variables
   Pred  : finite alphabet of predicate symbols
-  deg   : Pred → Nat, required to be positive (a "unique positive integer").
+  deg   : Pred → Nat, required to be positive on all predicate symbols.
 -/
-
 structure EFSSignature where
   K : Type
   V : Type
@@ -37,7 +40,6 @@ abbrev KString (S : EFSSignature) : Type := List S.K
 /- A nonempty `K`-string. -/
 abbrev NonemptyKString (S : EFSSignature) : Type := { u : KString S // u ≠ [] }
 
-
 /- A term over an EFSSignature is a finite string over the disjoint alphabets K and V. -/
 abbrev Term (S : EFSSignature) : Type :=
   List (S.K ⊕ S.V)
@@ -56,6 +58,10 @@ def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) : Term S → Term
         (List.map Sum.inl u.1) ++ subst x u t
       else
         Sum.inr y :: subst x u t
+
+/- Embedding a K-string into a Term by mapping K-symbols to Sum.inl -/
+def ofKstring {S : EFSSignature} : KString S → Term S :=
+  List.map Sum.inl
 end Term
 
 /-- In Smullyan's presentation, an atomic formula over an EFSSignature is defined as a
@@ -76,6 +82,13 @@ def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) :
   AtomicFormula S → AtomicFormula S
   | ⟨P, args⟩ =>
       ⟨P, Vector.map (Term.subst x u) args⟩
+
+/- helper to construct atomic formulas from K-strings -/
+def ofKStrings
+  {S : EFSSignature} (P : S.Pred)
+  (xs : Vector (KString S) (S.deg P)) :
+  AtomicFormula S :=
+⟨ P, Vector.map Term.ofKstring xs⟩
 
 end AtomicFormula
 
@@ -141,6 +154,47 @@ inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
       -----------------------------
       Provable E ⟨ps, C⟩
 
+
+/--
+Smullyan introduces the term 'attribute':
+'for any set S, an attribute over S is either a subset of S or a set of n-tuples of elements of S'
+We represent this as the type former Attribute
+which for a type `α` denotes the n-ary relation on `α`.
+Perhaps there is a more idiomatic way to represent this in Lean?
+-/
+-- structure Attribute (α : Type) where
+--   arity : Nat
+--   arity_pos : 0 < arity
+--   set : Set (Vector α arity)
+abbrev Attribute (α : Type) (n : Nat) : Type :=
+  Set (Vector α n)
+
+namespace Attribute
+-- Helper to transport attributes along equalities of their arities.
+def cast {α : Type} {m n : Nat} (h : m = n) (W : Attribute α m) : Attribute α n :=
+  match h with
+  | rfl => W
+end Attribute
+
+/--
+A predicate P of degree n is said to represent the set of
+all n-tuples (X1, ••• , Xn) (of strings in K) such that PX1, ••• , Xn is provable in (E).
+-/
+def PredicateRepresents
+  {S : EFSSignature} (E : EFS S)
+  (P : S.Pred)
+  (W : Attribute (KString S) (S.deg P)) : Prop :=
+  ∀ xs : Vector (KString S) (S.deg P),
+    xs ∈ W ↔
+      Provable E ⟨[], AtomicFormula.ofKStrings P xs⟩
+
+/--
+An attribute over `K` is formally representable
+if there exists some EFS and predicate that represent it.
+-/
+def FormallyRepresentable {n : Nat} (S : EFSSignature) (W : Attribute (KString S) n) : Prop :=
+  ∃ (E : EFS S) (P : S.Pred) (h : n = S.deg P),
+    PredicateRepresents E P (Attribute.cast h W)
 
 /-
 Syntax definitions for convenient notation.
