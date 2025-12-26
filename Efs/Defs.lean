@@ -62,9 +62,41 @@ def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) : Term S → Term
 /- Embedding a K-string into a Term by mapping K-symbols to Sum.inl -/
 def ofKstring {S : EFSSignature} : KString S → Term S :=
   List.map Sum.inl
+
+-- Useful simp lemmas
+-- Taking Term.ofKstring s ++ Term.ofKstring t as normal form
+@[simp] lemma ofKstring_append {S : EFSSignature} (s t : KString S) :
+  Term.ofKstring (s ++ t) =
+    Term.ofKstring s ++ Term.ofKstring t := by
+  simp [Term.ofKstring, List.map_append]
+
+@[simp] lemma subst_singleton_var {S : EFSSignature}
+    (x : S.V) (u : NonemptyKString S) :
+  Term.subst x u [Sum.inr x] = Term.ofKstring u.1 := by
+  simp [Term.subst, Term.ofKstring]
+
+@[simp] lemma subst_ofKstring {S : EFSSignature}
+    (x : S.V) (u : NonemptyKString S) (s : KString S) :
+  Term.subst x u (Term.ofKstring s) = Term.ofKstring s := by
+    -- substituting into a term with no variables is the identity
+    induction s with
+    | nil => simp [Term.ofKstring, Term.subst]
+    | cons k ks ih =>
+        simp [Term.ofKstring] at ih
+        simp [Term.ofKstring, Term.subst, ih]
+
+@[simp] lemma subst_cons_var_ofKstring {S : EFSSignature}
+    (x : S.V) (u : NonemptyKString S) (s : KString S) :
+  Term.subst x u (Sum.inr x :: Term.ofKstring s) = Term.ofKstring u.1 ++ Term.ofKstring s := by
+      induction s with
+      | nil => simp [Term.ofKstring, Term.subst]
+      | cons k ks ih =>
+          simp [Term.subst, Term.ofKstring] at ih
+          simp [Term.ofKstring, Term.subst, ih]
+
 end Term
 
-/-- In Smullyan's presentation, an atomic formula over an EFSSignature is defined as a
+/- In Smullyan's presentation, an atomic formula over an EFSSignature is defined as a
 string consisting of a predicate symbol P followed by deg P terms seperated by a
 comma symbol ',' outside of K,V and P. To avoid parsing, we will jump directly to an abstract
 representation, and enforce the well-formedness via the type system.
@@ -90,6 +122,18 @@ def ofKStrings
   AtomicFormula S :=
 ⟨ P, Vector.map Term.ofKstring xs⟩
 
+-- Useful simp lemmas
+@[simp] lemma subst_mk {S : EFSSignature} (x : S.V) (u : NonemptyKString S)
+    (P : S.Pred) (args : Vector (Term S) (S.deg P)) :
+  AtomicFormula.subst x u ⟨P, args⟩ =
+    ⟨P, Vector.map (Term.subst x u) args⟩ := rfl
+
+
+@[simp] lemma subst_ofKStrings {S : EFSSignature} (x : S.V) (u : NonemptyKString S)
+    (P : S.Pred) (xs : Vector (KString S) (S.deg P)) :
+  AtomicFormula.subst x u (AtomicFormula.ofKStrings P xs) = AtomicFormula.ofKStrings P xs := by
+  -- because Term.ofKstring has no variables, subst is the identity on it
+  simp [AtomicFormula.ofKStrings]
 end AtomicFormula
 
 /- Intuitively, Smullyan's formulas can be seen as Horn-clauses (think Prolog) with
@@ -119,6 +163,12 @@ def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) :
   | ⟨premises, concl⟩ =>
       ⟨List.map (AtomicFormula.subst x u) premises,
        AtomicFormula.subst x u concl⟩
+
+-- Useful simp lemmas
+@[simp] lemma subst_mk {S : EFSSignature} (x : S.V) (u : NonemptyKString S)
+    (premises : List (AtomicFormula S)) (concl : AtomicFormula S) :
+  Formula.subst x u ⟨premises, concl⟩ =
+    ⟨premises.map (AtomicFormula.subst x u), AtomicFormula.subst x u concl⟩ := rfl
 end Formula
 
 /-
@@ -141,7 +191,7 @@ inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
       ----------------------------------
       Provable E (Formula.subst x u X)
 --
-  /--
+  /-
   Rule of Detachment or Modus Ponens.
   If we have `A` and `A → X`, infer `X`.
   In our list representation:
@@ -155,7 +205,7 @@ inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
       Provable E ⟨ps, C⟩
 
 
-/--
+/-
 Smullyan introduces the term 'attribute':
 'for any set S, an attribute over S is either a subset of S or a set of n-tuples of elements of S'
 We represent this as the type former Attribute
@@ -176,7 +226,7 @@ def cast {α : Type} {m n : Nat} (h : m = n) (W : Attribute α m) : Attribute α
   | rfl => W
 end Attribute
 
-/--
+/-
 A predicate P of degree n is said to represent the set of
 all n-tuples (X1, ••• , Xn) (of strings in K) such that PX1, ••• , Xn is provable in (E).
 -/
@@ -188,7 +238,7 @@ def PredicateRepresents
     xs ∈ W ↔
       Provable E ⟨[], AtomicFormula.ofKStrings P xs⟩
 
-/--
+/-
 An attribute over `K` is formally representable
 if there exists some EFS and predicate that represent it.
 -/
@@ -201,12 +251,16 @@ Syntax definitions for convenient notation.
 -/
 namespace EFSNotation
 
-/-- Turnstile notation for derivability: `E ⊢ X` -/
+-- Turnstile notation for derivability: `E ⊢ X`
 scoped notation:51 E " ⊢ " X:50 => Provable E X
 
-/-- Substitution notation: `X[u/x]` -/
-scoped notation:90 t "[" u "/" x "]" => Term.substVar _ x u t
-scoped notation:90 A "[" u "/" x "]" => AtomicFormula.subst x u A
-scoped notation:90 X "[" u "/" x "]" => Formula.subst x u X
+-- Substitution notation: `X⟦u/x⟧`
+scoped notation:90 t "⟦" u "/" x "⟧" => Term.substVar _ x u t
+scoped notation:90 A "⟦" u "/" x "⟧" => AtomicFormula.subst x u A
+scoped notation:90 X "⟦" u "/" x "⟧" => Formula.subst x u X
+/- Can't seem to get this notation to work. keep getting error:
+failed to synthesize instance of type class
+  HDiv (NonemptyKString S) V ?m.119
+-/
 
 end EFSNotation

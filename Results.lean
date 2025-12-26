@@ -51,16 +51,43 @@ def encode (n : Nat) : KString S :=
   List.replicate n K.l
 def unencode (u : KString S) : Nat :=
   u.length
+-- useful lemmas about encodings
+@[simp] lemma encode_add (m n : Nat) : encode (m + n) = encode m ++ encode n := by
+  simp [encode]
+lemma encode_ne_nil_of_pos {n : Nat} (hn : 0 < n) : encode n ≠ [] := by
+  cases n with
+  | zero => cases hn
+  | succ n => simp [encode]
+
+-- The following lemma will be useful in the completeness proof.
+lemma encode_two_step (k : Nat) :
+  encode (2 * (k + 1 + 1)) = encode (2 * (k + 1)) ++ encode 2 := by
+  calc
+    encode (2 * (k + 1 + 1))
+        = encode (2 * (k + 1) + 2) := by
+            have two_mul_succ : ∀ m : Nat, 2 * (m + 1) = 2 * m + 2 := by
+              intro m
+              omega
+            simp [two_mul_succ]
+    _   = encode (2 * (k + 1)) ++ encode 2 := by
+            simp
 
 -- helper to construct atomic formula "Even(s)" from a Term s.
 def EvenAtom (s : Term S) : AtomicFormula S :=
   ⟨Pred.Even, Vector.ofFn (fun _ => s)⟩
 
+-- useful simp lemma for vectors
+@[simp] lemma Vector.map_ofFn {α β : Type} {n : Nat}
+    (f : α → β) (g : Fin n → α) :
+    Vector.map f (Vector.ofFn g) = Vector.ofFn (fun i => f (g i)) := by
+  ext i
+  simp [Vector.ofFn, Vector.map]
+
 -- Axiom 1: "Even(ll)".
 def ax1 : Formula S :=
   ⟨[] , EvenAtom (Term.ofKstring (encode 2))⟩
 
--- Axiom 2: "E(x) -> E(xll)".
+-- Axiom 2: "Even(x) -> Even(xll)".
 def ax2 : Formula S :=
   ⟨[ EvenAtom ([Sum.inr V.x]) ],
   EvenAtom ([Sum.inr V.x] ++ (Term.ofKstring (encode 2)))⟩
@@ -88,9 +115,66 @@ def EvenAttr : Attribute (KString S) 1 :=
 Finally, we can state the main theorem of this example, which says that the
 set of positive nonzero even naturals is formally representable over the unary signature.
 Namely, for the above system E, the predicate ”Even" provides the desired representation.
+
+This requires us to show the two lemmas:
+(i) ('Completeness') for any even number X, "Even(X)" is provable in the system;
+(ii) ('Soundness') if "Even(X)" is provable in the system, then X is even.
 -/
+lemma completeness : ∀ n : Nat,
+  MetaEven n → E ⊢ ⟨ [], (EvenAtom (Term.ofKstring (encode n))) ⟩ :=
+    by
+      intro n hn
+      rcases hn with ⟨k, rfl⟩
+      -- Perform induction on the sequence nonzero even naturals
+      induction k with
+      -- base case
+        | zero =>
+          -- goal: E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode 2))⟩
+          have hmem : ax1 ∈ E.axioms := by
+            simp [E]
+          -- use the axiom rule, then rewrite goal to ax1
+          have : Provable E ax1 := Provable.ax hmem
+          simpa [ax1] using this
+      -- inductive case
+        | succ k ih =>
+          -- goal: E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (2 * (k.succ + 1))))⟩
+          -- which is E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (2 * (k + 2))))⟩
+
+          /- First, we use the subtitution rule (with u := encode (2 * (k + 1)))
+          and the second axiom to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"-/
+          -- Let u be the string encoding of 2*(k+1), and package it as NonemptyKString for rule1.
+          have hu_ne : encode (2 * (k + 1)) ≠ [] := by
+            apply encode_ne_nil_of_pos
+            -- 2*(k+1) > 0
+            have : 0 < 2 * (k + 1) := by
+              simp
+            exact this
+          let u : NonemptyKString S := ⟨encode (2 * (k + 1)), hu_ne⟩
+          -- ax2 is provable (because it is an axiom)
+          have hax2 : E ⊢ ax2 :=
+            Provable.ax (by simp [E])
+          -- Substitute u for x in ax2 to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"
+          have hsub : E ⊢ (Formula.subst V.x u ax2) :=
+            Provable.rule1 V.x u hax2
+            -- Put the substituted ax2 into a usable “implication” shape and simplify it.
+        -- After substitution it should read: Even(u) -> Even(u ++ encode 2)
+          have himp :
+            E ⊢ ⟨[EvenAtom (Term.ofKstring (encode (2 * (k + 1))))],
+                  EvenAtom (Term.ofKstring (encode (2 * (k + 1)) ++ encode 2))⟩ := by
+                    simpa [ax2, EvenAtom, u] using hsub
+        -- Detach himp using ih to obtain the successor evenness
+          have hnext :
+            E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (2 * (k + 1)) ++ encode 2))⟩ :=
+            Provable.rule2 ih himp
+        -- Finally, rewrite the goal using the previous lemma encode_two_step
+          simpa [encode_two_step] using hnext
+
+
 theorem MetaEven_formally_representable :
   FormallyRepresentable S EvenAttr := by
+    use E
+    use Pred.Even
+    use rfl
     sorry
 
 end Example1
