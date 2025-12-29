@@ -136,8 +136,8 @@ def ofKStrings
   simp [AtomicFormula.ofKStrings]
 end AtomicFormula
 
-/- Intuitively, Smullyan's formulas can be seen as Horn-clauses (think Prolog) with
-a finite sequence of premises and a single conclusion.
+/- Intuitively, Smullyan's formulas can be seen as Horn-clauses (think Prolog)
+with a finite sequence of premises and a single conclusion.
 A direct formulation of Smullyan's definition of
 well formed formulas might look something like: -/
 -- inductive Formula (S : EFSSignature) where
@@ -147,8 +147,9 @@ well formed formulas might look something like: -/
  Intuition why expressive power is not lost:
  Any implication in a premise can be compiled away by introducing a fresh predicate symbol.
 
-Instead of a direct formulation, we use the following isomorphic list form that keeps explicit track
-of the premises and single conclusion. Not sure if this is best in long run...-/
+Instead of a direct formulation, we use the following isomorphic
+list form that keeps explicit track of the premises and single conclusion.
+ Not sure if this is best in long run...-/
 structure Formula (S : EFSSignature) where
   premises : List (AtomicFormula S)
   concl    : AtomicFormula S
@@ -204,9 +205,18 @@ inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
       -----------------------------
       Provable E ⟨ps, C⟩
 
+/-
+Any sentence derivable from A1,..., An by substitution and modus ponens,
+can as well be derived from the instances of A1,...,An  by modus ponens alone.
+That is, in any derivation involving both substitution and detachment,
+we could first make all necessary substitutions in the Ai and then perform the detachments.
+This fact can be established rigorously by a simple induction argument, and
+would perhaps make certain metatheorems easier to prove?
+-/
+
 
 /-
-Smullyan introduces the term 'attribute':
+Smullyan introduces the notion of 'attribute':
 'for any set S, an attribute over S is either a subset of S or a set of n-tuples of elements of S'
 We represent this as the type former Attribute
 which for a type `α` denotes the n-ary relation on `α`.
@@ -227,16 +237,16 @@ def cast {α : Type} {m n : Nat} (h : m = n) (W : Attribute α m) : Attribute α
 end Attribute
 
 /-
-A predicate P of degree n is said to represent the set of
-all n-tuples (X1, ••• , Xn) (of strings in K) such that PX1, ••• , Xn is provable in (E).
+'A predicate P of degree n is said to represent the set of
+all n-tuples (X1, ••• , Xn) (of strings in K) such that PX1, ••• , Xn is provable in (E).'
 -/
 def PredicateRepresents
   {S : EFSSignature} (E : EFS S)
   (P : S.Pred)
   (W : Attribute (KString S) (S.deg P)) : Prop :=
-  ∀ xs : Vector (KString S) (S.deg P),
-    xs ∈ W ↔
-      Provable E ⟨[], AtomicFormula.ofKStrings P xs⟩
+  ∀ Xs : Vector (KString S) (S.deg P),
+    Xs ∈ W ↔
+      Provable E ⟨[], AtomicFormula.ofKStrings P Xs⟩
 
 /-
 An attribute over `K` is formally representable

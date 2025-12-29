@@ -1,13 +1,7 @@
 # efs
 
-## GitHub configuration
+Lean formalization of Smullyan's 'Elementary formal systems’  (which is also presented, along with the example formalized here, in ch 1 of the manuscript 'Theory of Formal Systems').
 
-To set up your new GitHub repository, follow these steps:
-
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
-
-After following the steps above, you can remove this section from the README file.
+References:
+- https://projecteuclid.org/journals/journal-of-the-mathematical-society-of-japan/volume-13/issue-1/Elementary-formal-systems/10.2969/jmsj/01310038.full
+- https://www.jstor.org/stable/j.ctt1b7x7ww
