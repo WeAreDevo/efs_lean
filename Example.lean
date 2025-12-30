@@ -143,6 +143,9 @@ lemma map_eq_ofFn_head {α β : Type} (f : α → β) (X : Vector α 1) :
   Vector.map f X = Vector.ofFn (fun _ : Fin 1 => f X.head) := by
     rw [eq_ofFn_head X]
     simp [map_ofFn]
+@[simp] lemma Vector.head_map {α β : Type} {n : Nat} (f : α → β) (v : Vector α (n + 1)) :
+  (v.map f).head = f v.head := by
+    simp [Vector.head, Vector.map]
 
 
 -- Attribute of unary strings encoding our meta object.
@@ -215,6 +218,20 @@ def eval {S : EFSSignature}
   | (Sum.inl k) :: t => k :: eval σ t
   | (Sum.inr x) :: t => (σ x).1 ++ eval σ t
 
+@[simp] lemma eval_concat
+  (σ : S.V → NonemptyKString S) (t1 t2 : Term S) :
+  eval σ (t1 ++ t2) = eval σ t1 ++ eval σ t2 := by
+  induction t1 with
+    | nil =>
+        simp [eval]
+    | cons hd tl ih =>
+      cases hd with
+        | inl k =>
+            simp [eval, ih]
+        | inr x =>
+            simp [eval, ih]
+
+
 /-- Evaluating an embedded K-string term just returns that K-string. -/
 @[simp] lemma eval_ofKstring
   (σ : S.V → NonemptyKString S) (s : KString S) :
@@ -247,8 +264,7 @@ def FormulaTrue (X : Formula S) (σ : S.V → NonemptyKString S) : Prop :=
   | ⟨premises, concl⟩ =>
       (∀ A ∈ premises, AtomTrue A σ) → AtomTrue concl σ
 
-/- We first prove that the axioms are all true under this interpretation,
- and that the provability rules preserve truth. -/
+/- We first prove that the axioms are all true under this interpretation -/
 lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
   intro ax hax σ
   have h : ax = ax1 ∨ ax = ax2 := by
@@ -285,19 +301,97 @@ lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
       rw [hk]
       omega
 
-lemma rule1_preserves_truth
-    {X : Formula S} {x : S.V} {u : NonemptyKString S} (hprov : E ⊢ X)
-    : (∀ σ, FormulaTrue X σ) → (∀ σ, FormulaTrue (Formula.subst x u X) σ) := by
+
+/- Next, we prove that provability preserves truth.
+This requires some lemmas about assignments and substitutions -/
+def variant (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
+ S.V → NonemptyKString S := fun
+                            y => if y = x then u
+                            else σ y
+
+lemma eval_subst_eq_eval_update
+  (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) (t : Term S) :
+  eval σ (Term.subst x u t) = eval (variant σ x u) t := by
+  induction t with
+    | nil =>
+        simp [Term.subst, eval]
+    | cons hd tl ih =>
+        cases hd with
+          | inl k =>
+              simp [Term.subst, eval, ih]
+          | inr y =>
+              simp [eval]
+              by_cases hxy : y = x
+              · -- case hxy: y = x
+                rw [hxy]
+                simp [variant]
+                rw [← ih]
+                simp [Term.subst]
+                simpa [Term.ofKstring] using (eval_ofKstring (σ := σ) (s := (u : KString S)))
+              · -- case hxy : y ≠ x
+                simp [Term.subst]
+                simp [variant, hxy]
+                rw [← ih]
+                simp [eval]
+
+lemma AtomTrue_subst
+  (A : AtomicFormula S) (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
+  AtomTrue (AtomicFormula.subst x u A) σ ↔ AtomTrue A (variant σ x u) := by
+    apply Iff.intro
+    · intro htrue
+      simp [AtomicFormula.subst, AtomTrue] at htrue ⊢
+      rcases A with ⟨p, args⟩
+      -- in our current signature, there is
+      -- only one predicate constructor Pred.Even, so p = Pred.Even.
+      cases p; simp at htrue ⊢
+      rw [← (eval_subst_eq_eval_update σ x u (vget0 args))]
+      simp [vget0] at htrue ⊢
+      exact htrue
+    · intro htrue
+      simp [AtomicFormula.subst, AtomTrue] at htrue ⊢
+      rcases A with ⟨p, args⟩
+      cases p ; simp at htrue ⊢
+      rw [← eval_subst_eq_eval_update σ x u (vget0 args)] at htrue
+      simp [vget0] at htrue ⊢
+      exact htrue
+
+
+lemma FormulaTrue_subst
+  (X : Formula S) (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
+  FormulaTrue (Formula.subst x u X) σ ↔ FormulaTrue X (variant σ x u) := by
     admit
 
-lemma rule2_preserves_truth
-    {A C : AtomicFormula S} {ps : List (AtomicFormula S)} :
-      Provable E ⟨[], A⟩ →
-      Provable E ⟨A :: ps, C⟩ →
-      (∀ σ, AtomTrue A σ) →
-      (∀ σ, (∀ B ∈ ps, AtomTrue B σ) → AtomTrue C σ) →
-      (∀ σ, (∀ B ∈ ps, AtomTrue B σ) → AtomTrue C σ) := by
-      admit
+lemma provable_sound : ∀ {X : Formula S}, (E ⊢ X) → ∀ σ, FormulaTrue X σ := by
+  intro X hX
+  induction hX with
+  -- We show that each proof rule preserves truth.
+  | ax hmem =>
+      rename_i X
+      intro σ
+      exact axioms_true X hmem σ
+  | rule1 x u h ih =>
+      rename_i X
+      intro σ
+      rw [FormulaTrue_subst]
+      exact ih (variant σ x u)
+  | rule2 h1 h2 ih1 ih2 =>
+      rename_i A C ps
+      intro σ
+      simp [FormulaTrue] at ih1 ih2 ⊢
+      intro hprem
+      apply ih2 σ
+      · exact ih1 σ
+      · exact hprem
+
+lemma soundness : ∀ n : Nat,
+  E ⊢ ⟨ [], EvenAtom (Term.ofKstring (encode n)) ⟩ → MetaEven n := by
+  intro n hn
+  -- use provable_sound to get that the formula is true under any assignment
+  -- pick any valuation; it won’t matter since the term is ground
+  let σ0 : S.V → NonemptyKString S := fun _ => ⟨encode 1, by simp [encode]⟩
+  have htrue := provable_sound hn σ0
+  simp [FormulaTrue, EvenAtom, AtomTrue, vget0] at htrue
+  exact htrue
 
 theorem MetaEven_formally_representable :
   FormallyRepresentable S EvenAttr := by
@@ -319,8 +413,17 @@ theorem MetaEven_formally_representable :
       simp [AtomicFormula.ofKStrings, map_eq_ofFn_head]
       exact hprov
     -- (←) direction: if Even(X) is provable, then X ∈ EvenAttr.
-
-
-    sorry
+    · intro hprov
+      simp [AtomicFormula.ofKStrings] at hprov
+      have : MetaEven (decode (vget0 X)) := by
+      -- rewrite hprov into the exact form soundness expects
+        have hprov'' :
+          E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (decode (vget0 X))))⟩ := by
+            -- first normalize ofKStrings -> EvenAtom (vget0 X)
+            -- then rewrite vget0 X as encode (decode (vget0 X))
+            simpa [EvenAtom, vget0, encode_decode (u := vget0 X), map_eq_ofFn_head] using hprov
+        exact soundness (decode (vget0 X)) hprov''
+      simp [Attribute.cast]
+      exact this
 
 end Example1
