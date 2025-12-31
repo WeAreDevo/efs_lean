@@ -167,7 +167,7 @@ lemma completeness : ∀ n : Nat,
     by
       intro n hn
       rcases hn with ⟨k, rfl⟩
-      -- Perform induction on the sequence nonzero even naturals
+      -- Perform induction on the sequence of nonzero even naturals
       induction k with
       -- base case
         | zero =>
@@ -389,9 +389,9 @@ lemma provable_sound : ∀ {X : Formula S}, (E ⊢ X) → ∀ σ, FormulaTrue X 
 lemma soundness : ∀ n : Nat,
   E ⊢ ⟨ [], EvenAtom (Term.ofKstring (encode n)) ⟩ → MetaEven n := by
   intro n hn
-  -- use provable_sound to get that the formula is true under any assignment
   -- pick any valuation; it won’t matter since the term is ground
   let σ0 : S.V → NonemptyKString S := fun _ => ⟨encode 1, by simp [encode]⟩
+  -- use provable_sound to get that the formula is true under the assignment
   have htrue := provable_sound hn σ0
   simp [FormulaTrue, EvenAtom, AtomTrue, vget0] at htrue
   exact htrue
@@ -419,13 +419,11 @@ theorem MetaEven_formally_representable :
     · intro hprov
       simp [AtomicFormula.ofKStrings] at hprov
       have : MetaEven (decode (vget0 X)) := by
-      -- rewrite hprov into the exact form soundness expects
-        have hprov'' :
+      -- rewrite hprov into the form soundness expects
+        have hprov' :
           E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (decode (vget0 X))))⟩ := by
-            -- first normalize ofKStrings -> EvenAtom (vget0 X)
-            -- then rewrite vget0 X as encode (decode (vget0 X))
-            simpa [EvenAtom, vget0, encode_decode (u := vget0 X), map_eq_ofFn_head] using hprov
-        exact soundness (decode (vget0 X)) hprov''
+            simpa [map_eq_ofFn_head] using hprov
+        exact soundness (decode (vget0 X)) hprov'
       simp [Attribute.cast]
       exact this
 
