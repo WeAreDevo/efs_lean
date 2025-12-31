@@ -41,6 +41,7 @@ def S : EFSSignature :=
   K := K
   V := V
   Pred := Pred
+  -- Even is a unary predicate:
   deg := fun _ => 1
   deg_pos := by
     simp
@@ -54,7 +55,7 @@ def decode (u : KString S) : Nat :=
 -- useful lemmas about encodings and decodings
 -- mutual inverses
 @[simp] lemma encode_decode (u : KString S) : encode (decode u) = u := by
--- This holds since K contains only one symbol.
+-- This holds since K contains only the one symbol l
     -- unfold encode/decode
   simp [encode, decode]
   -- goal is now: replicate (length u) K.l = u
@@ -62,7 +63,6 @@ def decode (u : KString S) : Nat :=
   | nil =>
       simp
   | cons k t ih =>
-      -- since K is singleton, k = l
       cases k  -- only case is K.l
       -- now goal is replicate (length (K.l :: t)) K.l = K.l :: t
       simp [List.replicate_succ, ih]
@@ -73,7 +73,7 @@ def decode (u : KString S) : Nat :=
   simp [decode]
 @[simp] lemma encode_add (m n : Nat) : encode (m + n) = encode m ++ encode n := by
   simp [encode]
-lemma encode_ne_nil_of_pos {n : Nat} (hn : 0 < n) : encode n ≠ [] := by
+lemma encode_of_pos_ne_nil {n : Nat} (hn : 0 < n) : encode n ≠ [] := by
   cases n with
   | zero => cases hn
   | succ n => simp [encode]
@@ -107,7 +107,9 @@ lemma eq_ofFn_head {α : Type} (X : Vector α 1) :
   have : i = 0 := (Nat.lt_one_iff).1 hi
   subst this
   simp [Vector.head]
-
+@[simp] lemma head_map {α β : Type} {n : Nat} (f : α → β) (v : Vector α (n + 1)) :
+  (v.map f).head = f v.head := by
+    simp [Vector.head, Vector.map]
 
 
 -- Axiom 1: "Even(ll)".
@@ -119,6 +121,7 @@ def ax2 : Formula S :=
   ⟨[ EvenAtom ([Sum.inr V.x]) ],
   EvenAtom ([Sum.inr V.x] ++ (Term.ofKstring (encode 2)))⟩
 
+-- The EFS consisting of the above two axioms.
 def E : EFS S :=
   {
     axioms := {ax1, ax2}
@@ -133,6 +136,7 @@ def MetaEven (n : Nat) : Prop :=
 -/
 def vget0 {α : Type} (xs : Vector α 1) : α :=
   xs.head
+-- additional equality lemmas about vget0 and vectors of length 1
 @[simp] lemma vget0_ofFn {α : Type} (t : α) :
   vget0 (Vector.ofFn (fun _ : Fin 1 => t)) = t := by
     rfl
@@ -143,9 +147,6 @@ lemma map_eq_ofFn_head {α β : Type} (f : α → β) (X : Vector α 1) :
   Vector.map f X = Vector.ofFn (fun _ : Fin 1 => f X.head) := by
     rw [eq_ofFn_head X]
     simp [map_ofFn]
-@[simp] lemma Vector.head_map {α β : Type} {n : Nat} (f : α → β) (v : Vector α (n + 1)) :
-  (v.map f).head = f v.head := by
-    simp [Vector.head, Vector.map]
 
 
 -- Attribute of unary strings encoding our meta object.
@@ -154,8 +155,8 @@ def EvenAttr : Attribute (KString S) 1 :=
 
 /-
 Finally, we can state the main theorem of this example, which says that the
-set of positive nonzero even naturals is formally representable over the unary signature.
-Namely, for the above system E, the predicate ”Even" provides the desired representation.
+set of positive nonzero even naturals is formally representable over a unary signature.
+Namely, with the above system E, the predicate ”Even" provides the desired representation.
 
 This requires us to show the two lemmas:
 (i) ('Completeness') for any even number X, "Even(X)" is provable in the system;
@@ -185,7 +186,7 @@ lemma completeness : ∀ n : Nat,
           and the second axiom to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"-/
           -- Let u be the string encoding of 2*(k+1), and package it as NonemptyKString for rule1.
           have hu_ne : encode (2 * (k + 1)) ≠ [] := by
-            apply encode_ne_nil_of_pos
+            apply encode_of_pos_ne_nil
             -- 2*(k+1) > 0
             have : 0 < 2 * (k + 1) := by
               simp
@@ -212,6 +213,7 @@ lemma completeness : ∀ n : Nat,
 
 /- Towards proving (ii), we define an interpretation mapping formulas to MetaEven propositions-/
 
+-- We first define evaluations, which ground terms containing variables into K-strings.
 def eval {S : EFSSignature}
     (σ : S.V → NonemptyKString S) : Term S → KString S
   | [] => []
@@ -248,8 +250,8 @@ lemma decode_eval_xll (σ : S.V → NonemptyKString S) :
   simp [eval]
 
 
-/- 'define an atomic expression of the form EvenX
-(where X is a string of 1's ) to be true iff [decode] X is even' (i.e. X ∈ EvenAttr) -/
+/- Interpret an atomic expression of the form EvenX
+(where X is a string of l's ) to be true iff [decode] X is even' (i.e. X ∈ EvenAttr) -/
 def AtomTrue (A : AtomicFormula S) (σ : S.V → NonemptyKString S) : Prop :=
   match A with
   | ⟨Pred.Even, args⟩ =>
@@ -257,14 +259,14 @@ def AtomTrue (A : AtomicFormula S) (σ : S.V → NonemptyKString S) : Prop :=
       MetaEven (decode (eval σ t))
 
 /-'for any expression of the form EvenX1 -> EvenX2,
-define it to be true iff EvenX1 is true implies EvenX2 is true.'
+interpret it to be true iff EvenX1 is true implies EvenX2 is true.'
 Here we generalize this to arbitrary formulas (which may have more than one premise).-/
 def FormulaTrue (X : Formula S) (σ : S.V → NonemptyKString S) : Prop :=
   match X with
   | ⟨premises, concl⟩ =>
       (∀ A ∈ premises, AtomTrue A σ) → AtomTrue concl σ
 
-/- We first prove that the axioms are all true under this interpretation -/
+/- We first prove that the axioms are always true under this interpretation for any assignment. -/
 lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
   intro ax hax σ
   have h : ax = ax1 ∨ ax = ax2 := by
@@ -279,6 +281,7 @@ lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
       -- There are no premises to ax1, so we just need to show the conclusion is true
       intro _
       simp [ax1, EvenAtom, AtomTrue, MetaEven, decode, vget0, encode]
+      -- ⊢ ∃ k, 2 = 2 * (k + 1)
       use 0
     | inr h2 =>
       -- h2 : ax = ax2
@@ -302,7 +305,7 @@ lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
       omega
 
 
-/- Next, we prove that provability preserves truth.
+/- Next, we show that provability preserves truth under arbitrary assignments.
 This requires some lemmas about assignments and substitutions -/
 def variant (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
  S.V → NonemptyKString S := fun
