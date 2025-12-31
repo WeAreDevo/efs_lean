@@ -359,7 +359,7 @@ lemma AtomTrue_subst
 lemma FormulaTrue_subst
   (X : Formula S) (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
   FormulaTrue (Formula.subst x u X) σ ↔ FormulaTrue X (variant σ x u) := by
-    admit
+    simp [Formula.subst, FormulaTrue, AtomTrue_subst]
 
 lemma provable_sound : ∀ {X : Formula S}, (E ⊢ X) → ∀ σ, FormulaTrue X σ := by
   intro X hX
