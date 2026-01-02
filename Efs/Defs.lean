@@ -15,6 +15,7 @@ An EFS signature consists of the mutually disjoint sets:
   K     : finite alphabet of basic symbols
   V     : finite alphabet of variables
   Pred  : finite alphabet of predicate symbols
+And a predicate arity function:
   deg   : Pred → Nat, required to be positive on all predicate symbols.
 -/
 structure EFSSignature where
@@ -44,7 +45,7 @@ abbrev NonemptyKString (S : EFSSignature) : Type := { u : KString S // u ≠ [] 
 abbrev Term (S : EFSSignature) : Type :=
   List (S.K ⊕ S.V)
 /-
-Uniform substitution into terms:
+Uniform substitution of kstrings into terms:
 Substitute the nonempty `K`-string `u` for all occurrences of variable `x` in a term.
 -/
 namespace Term
@@ -68,7 +69,7 @@ def ofKstring {S : EFSSignature} : KString S → Term S :=
 @[simp] lemma ofKstring_append {S : EFSSignature} (s t : KString S) :
   Term.ofKstring (s ++ t) =
     Term.ofKstring s ++ Term.ofKstring t := by
-  simp [Term.ofKstring, List.map_append]
+  simp [Term.ofKstring]
 
 @[simp] lemma subst_singleton_var {S : EFSSignature}
     (x : S.V) (u : NonemptyKString S) :
@@ -101,7 +102,7 @@ string consisting of a predicate symbol P followed by deg P terms seperated by a
 comma symbol ',' outside of K,V and P. To avoid parsing, we will jump directly to an abstract
 representation, and enforce the well-formedness via the type system.
 There are different equivalent ways to encode this abstract syntax in DTT.
-Namely, Vector-based (arity enforced by the type) or
+Eg, Vector-based (arity enforced by the type) or
 List + length proof (arity enforced by a dependent pair).
 I chose the vector approach but not sure if it's best. -/
 structure AtomicFormula (S : EFSSignature) where
@@ -155,7 +156,7 @@ structure Formula (S : EFSSignature) where
   concl    : AtomicFormula S
 deriving DecidableEq
 /- In this formulation, Atomic formulas are embeded into Formula as those with empty premises:
-   A  ≅  ⟨[], A⟩
+   A ↦ ⟨[], A⟩
 -/
 /- Extending substitution to general Formulas -/
 namespace Formula
@@ -169,7 +170,7 @@ def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) :
 @[simp] lemma subst_mk {S : EFSSignature} (x : S.V) (u : NonemptyKString S)
     (premises : List (AtomicFormula S)) (concl : AtomicFormula S) :
   Formula.subst x u ⟨premises, concl⟩ =
-    ⟨premises.map (AtomicFormula.subst x u), AtomicFormula.subst x u concl⟩ := rfl
+    ⟨List.map (AtomicFormula.subst x u) premises, AtomicFormula.subst x u concl⟩ := rfl
 end Formula
 
 /-
@@ -206,7 +207,7 @@ inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
       Provable E ⟨ps, C⟩
 
 /-
-Any sentence derivable from A1,..., An by substitution and modus ponens,
+Any sentence derivable from A1,...,An by substitution and modus ponens,
 can as well be derived from the instances of A1,...,An  by modus ponens alone.
 That is, in any derivation involving both substitution and detachment,
 we could first make all necessary substitutions in the Ai and then perform the detachments.
@@ -218,14 +219,7 @@ would perhaps make certain metatheorems easier to prove?
 /-
 Smullyan introduces the notion of 'attribute':
 'for any set S, an attribute over S is either a subset of S or a set of n-tuples of elements of S'
-We represent this as the type former Attribute
-which for a type `α` denotes the n-ary relation on `α`.
-Perhaps there is a more idiomatic way to represent this in Lean?
 -/
--- structure Attribute (α : Type) where
---   arity : Nat
---   arity_pos : 0 < arity
---   set : Set (Vector α arity)
 abbrev Attribute (α : Type) (n : Nat) : Type :=
   Set (Vector α n)
 
