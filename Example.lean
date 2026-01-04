@@ -174,20 +174,18 @@ lemma completeness : ∀ n : Nat,
           -- goal: E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode 2))⟩
           have hmem : ax1 ∈ E.axioms := by
             simp [E]
-          -- use the axiom rule, then rewrite goal to ax1
-          have : Provable E ax1 := Provable.ax hmem
-          simpa [ax1] using this
+          -- use the axiom rule
+          have : E ⊢ ax1 := Provable.ax hmem
+          exact this
       -- inductive case
         | succ k ih =>
-          -- goal: E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (2 * (k.succ + 1))))⟩
-          -- which is E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (2 * (k + 2))))⟩
-
+          -- goal: E ⊢ ⟨ [], EvenAtom (Term.ofKstring (encode (2 * (k + 1 + 1)))) ⟩
           /- First, we use the subtitution rule (with u := encode (2 * (k + 1)))
-          and the second axiom to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"-/
+          on the second axiom to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"-/
           -- Let u be the string encoding of 2*(k+1), and package it as NonemptyKString for rule1.
           have hu_ne : encode (2 * (k + 1)) ≠ [] := by
             apply encode_of_pos_ne_nil
-            -- 2*(k+1) > 0
+            -- sub-goal: ⊢ 0 < 2 * (k + 1)
             have : 0 < 2 * (k + 1) := by
               simp
             exact this
@@ -198,21 +196,21 @@ lemma completeness : ∀ n : Nat,
           -- Substitute u for x in ax2 to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"
           have hsub : E ⊢ (Formula.subst V.x u ax2) :=
             Provable.rule1 V.x u hax2
-            -- Put the substituted ax2 into a usable “implication” shape and simplify it.
-        -- After substitution it should read: Even(u) -> Even(u ++ encode 2)
+          -- simplify this instance of ax2 into a usable “implication” shape,
+          -- it reads: Even(u) -> Even(u ++ encode 2)
           have himp :
             E ⊢ ⟨[EvenAtom (Term.ofKstring (encode (2 * (k + 1))))],
                   EvenAtom (Term.ofKstring (encode (2 * (k + 1)) ++ encode 2))⟩ := by
-                    simpa [ax2, EvenAtom, u] using hsub
-        -- Detach himp using ih to obtain the successor evenness
+                    simpa [ax2, EvenAtom] using hsub
+          -- Apply rule2 to detach the ih from himp to obtain the successor evenness
           have hnext :
             E ⊢ ⟨[], EvenAtom (Term.ofKstring (encode (2 * (k + 1)) ++ encode 2))⟩ :=
             Provable.rule2 ih himp
-        -- Finally, rewrite the goal using the previous lemma encode_two_step
+          -- Finally, rewrite the goal using the previous lemma encode_two_step
           simpa [encode_two_step] using hnext
 
-/- Towards proving (ii), we define an interpretation mapping formulas to MetaEven propositions-/
 
+/- Towards proving (ii), we define an interpretation mapping formulas to MetaEven propositions-/
 -- We first define evaluations, which ground terms containing variables into K-strings.
 def eval {S : EFSSignature}
     (σ : S.V → NonemptyKString S) : Term S → KString S
@@ -227,11 +225,7 @@ def eval {S : EFSSignature}
     | nil =>
         simp [eval]
     | cons hd tl ih =>
-      cases hd with
-        | inl k =>
-            simp [eval, ih]
-        | inr x =>
-            simp [eval, ih]
+        cases hd <;> simp [eval, ih]
 
 
 /-- Evaluating an embedded K-string term just returns that K-string. -/
@@ -260,7 +254,7 @@ def AtomTrue (A : AtomicFormula S) (σ : S.V → NonemptyKString S) : Prop :=
 
 /-'for any expression of the form EvenX1 -> EvenX2,
 interpret it to be true iff EvenX1 is true implies EvenX2 is true.'
-Here we generalize this to arbitrary formulas (which may have more than one premise).-/
+Here we generalize this to arbitrary formulas.-/
 def FormulaTrue (X : Formula S) (σ : S.V → NonemptyKString S) : Prop :=
   match X with
   | ⟨premises, concl⟩ =>
@@ -281,7 +275,7 @@ lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
       -- There are no premises to ax1, so we just need to show the conclusion is true
       intro _
       simp [ax1, EvenAtom, AtomTrue, MetaEven, decode, vget0, encode]
-      -- ⊢ ∃ k, 2 = 2 * (k + 1)
+      -- goal: ⊢ ∃ k, 2 = 2 * (k + 1)
       use 0
     | inr h2 =>
       -- h2 : ax = ax2
@@ -300,7 +294,6 @@ lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
       simp [vget0] at hk ⊢
       rw [decode_eval_xll σ]
       simp [eval] at hk
-      -- use assumption from premise to finish
       rw [hk]
       omega
 
@@ -308,11 +301,11 @@ lemma axioms_true : ∀ ax ∈ E.axioms, ∀ σ, FormulaTrue ax σ := by
 /- Next, we show that provability preserves truth under arbitrary assignments.
 This requires some lemmas about assignments and substitutions -/
 def variant (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
- S.V → NonemptyKString S := fun
-                            y => if y = x then u
+ S.V → NonemptyKString S := fun y
+                            => if y = x then u
                             else σ y
 
-lemma eval_subst_eq_eval_update
+lemma eval_subst_eq_eval_variant
   (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) (t : Term S) :
   eval σ (Term.subst x u t) = eval (variant σ x u) t := by
   induction t with
@@ -330,7 +323,7 @@ lemma eval_subst_eq_eval_update
                 simp [variant]
                 rw [← ih]
                 simp [Term.subst]
-                simpa [Term.ofKstring] using (eval_ofKstring (σ := σ) (s := (u : KString S)))
+                simpa [Term.ofKstring] using (eval_ofKstring (σ := σ) (s := u))
               · -- case hxy : y ≠ x
                 simp [Term.subst]
                 simp [variant, hxy]
@@ -340,23 +333,12 @@ lemma eval_subst_eq_eval_update
 lemma AtomTrue_subst
   (A : AtomicFormula S) (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
   AtomTrue (AtomicFormula.subst x u A) σ ↔ AtomTrue A (variant σ x u) := by
-    apply Iff.intro
-    · intro htrue
+    constructor <;> intro htrue
+    all_goals
       simp [AtomicFormula.subst, AtomTrue] at htrue ⊢
       rcases A with ⟨p, args⟩
-      -- in our current signature, there is
-      -- only one predicate constructor Pred.Even, so p = Pred.Even.
-      cases p; simp at htrue ⊢
-      rw [← (eval_subst_eq_eval_update σ x u (vget0 args))]
-      simp [vget0] at htrue ⊢
-      exact htrue
-    · intro htrue
-      simp [AtomicFormula.subst, AtomTrue] at htrue ⊢
-      rcases A with ⟨p, args⟩
-      cases p ; simp at htrue ⊢
-      rw [← eval_subst_eq_eval_update σ x u (vget0 args)] at htrue
-      simp [vget0] at htrue ⊢
-      exact htrue
+      cases p; simp [eval_subst_eq_eval_variant, vget0] at htrue ⊢
+      simpa using htrue
 
 
 lemma FormulaTrue_subst
