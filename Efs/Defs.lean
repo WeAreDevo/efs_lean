@@ -259,12 +259,8 @@ namespace EFSNotation
 scoped notation:51 E " ⊢ " X:50 => Provable E X
 
 -- Substitution notation: `X⟦u/x⟧`
-scoped notation:90 t "⟦" u "/" x "⟧" => Term.substVar _ x u t
-scoped notation:90 A "⟦" u "/" x "⟧" => AtomicFormula.subst x u A
-scoped notation:90 X "⟦" u "/" x "⟧" => Formula.subst x u X
-/- Can't seem to get this notation to work. keep getting error:
-failed to synthesize instance of type class
-  HDiv (NonemptyKString S) V ?m.119
--/
+scoped notation:90 t "⟦" u:71 "/" x "⟧" => Term.subst x u t
+scoped notation:90 A "⟦" u:71 "/" x "⟧" => AtomicFormula.subst x u A
+scoped notation:90 X "⟦" u:71 "/" x "⟧" => Formula.subst x u X
 
 end EFSNotation

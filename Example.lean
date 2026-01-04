@@ -194,7 +194,7 @@ lemma completeness : ∀ n : Nat,
           have hax2 : E ⊢ ax2 :=
             Provable.ax (by simp [E])
           -- Substitute u for x in ax2 to get "E ⊢ Even(2 * (k + 1)) -> Even((2 * (k + 1)) + 2)"
-          have hsub : E ⊢ (Formula.subst V.x u ax2) :=
+          have hsub : E ⊢ ax2⟦u/V.x⟧ :=
             Provable.rule1 V.x u hax2
           -- simplify this instance of ax2 into a usable “implication” shape,
           -- it reads: Even(u) -> Even(u ++ encode 2)
@@ -307,7 +307,7 @@ def variant (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
 
 lemma eval_subst_eq_eval_variant
   (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) (t : Term S) :
-  eval σ (Term.subst x u t) = eval (variant σ x u) t := by
+  eval σ (t⟦u/x⟧) = eval (variant σ x u) t := by
   induction t with
     | nil =>
         simp [Term.subst, eval]
@@ -332,7 +332,7 @@ lemma eval_subst_eq_eval_variant
 
 lemma AtomTrue_subst
   (A : AtomicFormula S) (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
-  AtomTrue (AtomicFormula.subst x u A) σ ↔ AtomTrue A (variant σ x u) := by
+  AtomTrue (A⟦u/x⟧) σ ↔ AtomTrue A (variant σ x u) := by
     constructor <;> intro htrue
     all_goals
       simp [AtomicFormula.subst, AtomTrue] at htrue ⊢
@@ -343,7 +343,7 @@ lemma AtomTrue_subst
 
 lemma FormulaTrue_subst
   (X : Formula S) (σ : S.V → NonemptyKString S) (x : S.V) (u : NonemptyKString S) :
-  FormulaTrue (Formula.subst x u X) σ ↔ FormulaTrue X (variant σ x u) := by
+  FormulaTrue (X⟦u/x⟧) σ ↔ FormulaTrue X (variant σ x u) := by
     simp [Formula.subst, FormulaTrue, AtomTrue_subst]
 
 lemma provable_sound : ∀ {X : Formula S}, (E ⊢ X) → ∀ σ, FormulaTrue X σ := by
