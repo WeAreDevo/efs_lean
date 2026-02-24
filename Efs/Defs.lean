@@ -49,6 +49,10 @@ Uniform substitution of kstrings into terms:
 Substitute the nonempty `K`-string `u` for all occurrences of variable `x` in a term.
 -/
 namespace Term
+/- Embedding a K-string into a Term by mapping K-symbols to Sum.inl -/
+def ofKstring {S : EFSSignature} : KString S → Term S :=
+  List.map Sum.inl
+
 def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) : Term S → Term S
   | [] => []
   | (Sum.inl k) :: t =>
@@ -56,15 +60,13 @@ def subst {S : EFSSignature} (x : S.V) (u : NonemptyKString S) : Term S → Term
   | (Sum.inr y) :: t =>
       if y = x then -- uses DecidableEq on variables (S.V) to decide y = x.
         -- replace y by the K-string u, embedded into K⊕V as K-symbols
-        (List.map Sum.inl u.1) ++ subst x u t
+        Term.ofKstring u.1 ++ subst x u t
       else
         Sum.inr y :: subst x u t
 
-/- Embedding a K-string into a Term by mapping K-symbols to Sum.inl -/
-def ofKstring {S : EFSSignature} : KString S → Term S :=
-  List.map Sum.inl
 
 -- Useful simp lemmas
+
 -- Taking Term.ofKstring s ++ Term.ofKstring t as normal form
 @[simp] lemma ofKstring_append {S : EFSSignature} (s t : KString S) :
   Term.ofKstring (s ++ t) =
@@ -99,8 +101,8 @@ end Term
 
 /- In Smullyan's presentation, an atomic formula over an EFSSignature is defined as a
 string consisting of a predicate symbol P followed by deg P terms seperated by a
-comma symbol ',' outside of K,V and P. To avoid parsing, we will jump directly to an abstract
-representation, and enforce the well-formedness via the type system.
+comma symbol ',' outside of K,V and P. To avoid parsing, we will jump directly to an
+abstract representation, and enforce the well-formedness via the type system.
 There are different equivalent ways to encode this abstract syntax in DTT.
 Eg, Vector-based (arity enforced by the type) or
 List + length proof (arity enforced by a dependent pair).
@@ -108,6 +110,7 @@ I chose the vector approach but not sure if it's best. -/
 structure AtomicFormula (S : EFSSignature) where
   P : S.Pred
   args : Vector (Term S) (S.deg P)
+-- note relation between length of args and arity of P is enforced by the types of constructors.
 deriving DecidableEq
 /- Lifting substitution to AtomicFormulas -/
 namespace AtomicFormula
@@ -154,7 +157,7 @@ list form that keeps explicit track of the premises and single conclusion.
 structure Formula (S : EFSSignature) where
   premises : List (AtomicFormula S)
   concl    : AtomicFormula S
-deriving DecidableEq
+  deriving DecidableEq
 /- In this formulation, Atomic formulas are embeded into Formula as those with empty premises:
    A ↦ ⟨[], A⟩
 -/
@@ -180,6 +183,9 @@ is a finite set of formulas (over `S`) called axioms.
 structure EFS (S : EFSSignature) where
   axioms : Finset (Formula S)
 
+/- A formula is provable in an EFS if it is derivable,
+where derivability is defined inductively as follows:
+-/
 inductive Provable {S : EFSSignature} (E : EFS S) : Formula S → Prop where
   | ax {X : Formula S} :
   -- Any axiom is provable.

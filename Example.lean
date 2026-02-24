@@ -6,7 +6,7 @@ namespace Example1
 -- K has exactly one symbol: l
 inductive K : Type
   | l
-deriving DecidableEq
+  deriving DecidableEq
 instance : Fintype K where
   elems := {K.l}
   complete := by
@@ -17,7 +17,7 @@ instance : Fintype K where
 -- One variable x (enough for this example).
 inductive V : Type
   | x
-deriving DecidableEq
+  deriving DecidableEq
 instance : Fintype V where
   elems := {V.x}
   complete := by
@@ -28,7 +28,7 @@ instance : Fintype V where
 -- One unary predicate Even (intended: "is even").
 inductive Pred : Type
   | Even
-deriving DecidableEq
+  deriving DecidableEq
 instance : Fintype Pred where
   elems := {Pred.Even}
   complete := by
@@ -211,7 +211,8 @@ lemma completeness : ∀ n : Nat,
 
 
 /- Towards proving (ii), we define an interpretation mapping formulas to MetaEven propositions-/
--- We first define evaluations, which ground terms containing variables into K-strings.
+-- We first define evaluations, which ground terms containing variables into K-strings,
+-- through an assignment σ of variables to K-strings.
 def eval {S : EFSSignature}
     (σ : S.V → NonemptyKString S) : Term S → KString S
   | [] => []
@@ -245,7 +246,8 @@ lemma decode_eval_xll (σ : S.V → NonemptyKString S) :
 
 
 /- Interpret an atomic expression of the form EvenX
-(where X is a string of l's ) to be true iff [decode] X is even' (i.e. X ∈ EvenAttr) -/
+(where X is a string of l's ) to be true iff [decode] X is even' (i.e. X ∈ EvenAttr)
+We generalize this to arbitrary atomic formulas using assignments.-/
 def AtomTrue (A : AtomicFormula S) (σ : S.V → NonemptyKString S) : Prop :=
   match A with
   | ⟨Pred.Even, args⟩ =>
@@ -254,7 +256,7 @@ def AtomTrue (A : AtomicFormula S) (σ : S.V → NonemptyKString S) : Prop :=
 
 /-'for any expression of the form EvenX1 -> EvenX2,
 interpret it to be true iff EvenX1 is true implies EvenX2 is true.'
-Here we generalize this to arbitrary formulas.-/
+Here we generalize this to arbitrary formulas using assignments.-/
 def FormulaTrue (X : Formula S) (σ : S.V → NonemptyKString S) : Prop :=
   match X with
   | ⟨premises, concl⟩ =>
@@ -323,7 +325,6 @@ lemma eval_subst_eq_eval_variant
                 simp [variant]
                 rw [← ih]
                 simp [Term.subst]
-                simpa [Term.ofKstring] using (eval_ofKstring (σ := σ) (s := u))
               · -- case hxy : y ≠ x
                 simp [Term.subst]
                 simp [variant, hxy]
